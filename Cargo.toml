@@ -1,0 +1,12 @@
+[package]
+name = "vim-micromap"
+version = "0.1.0"
+authors = ["mjhd <mjhd.devlion@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+neovim-lib = "0.6.1"
+anyhow = "1.0.31"
+rmpv = "0.4.4"
