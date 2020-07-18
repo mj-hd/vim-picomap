@@ -62,6 +62,8 @@ function! s:sync(timer) abort
 	let l:scroll = line('w0')
 
 	call rpcnotify(s:ch, 'sync', s:bufnr, l:height, l:scroll, l:pos, l:lines, l:diags, l:changes)
+
+	let s:timer = timer_start(g:picomap_sync_interval, funcref('s:sync'), {})
 endfunction
 
 function! s:stop()
@@ -90,7 +92,7 @@ function! picomap#show() abort
 
 	setlocal filetype=picomap
 
-	call nvim_win_set_option(s:winid, 'winhl', 'Normal:Micromap')
+	call nvim_win_set_option(s:winid, 'winhl', 'Normal:Picomap')
 	call nvim_win_set_option(s:winid, 'winblend', g:picomap_winblend)
 
 	call win_gotoid(l:orig_winid)
@@ -98,7 +100,7 @@ function! picomap#show() abort
 	let l:success = s:start()
 
 	if l:success
-		let s:timer = timer_start(g:picomap_sync_interval, funcref('s:sync'), { 'repeat': -1 })
+		let s:timer = timer_start(g:picomap_sync_interval, funcref('s:sync'), {})
 	endif
 endfunction
 
@@ -107,7 +109,7 @@ function! picomap#update()
 		return
 	endif
 
-	let l:wininfo = getwininfo(win_getid())[0]
+	let l:wininfo = getwininfo(win_getid())[-1]
 
 	let s:winopts.height = l:wininfo.height
 	let s:winopts.col = l:wininfo.wincol + l:wininfo.width

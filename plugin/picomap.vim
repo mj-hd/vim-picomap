@@ -4,7 +4,7 @@ endif
 
 let g:picomap_loaded = 1
 
-augroup MicromapUpdate
+augroup PicomapUpdate
 	autocmd!
 	autocmd VimResized * call picomap#update()
 	autocmd WinEnter * call picomap#update()
