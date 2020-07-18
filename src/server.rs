@@ -2,7 +2,7 @@ use crate::highlighter::*;
 use crate::message::*;
 use anyhow::{Context, Result};
 use neovim_lib::{Neovim, Session, Value};
-use std::cmp::{max, min};
+use std::cmp::max;
 use std::convert::TryFrom;
 
 pub struct Server {
@@ -73,47 +73,48 @@ fn format(
         return vec![];
     }
 
-    let scale = len as u64 / min(height, len as u64);
-    let cursor = frame.cursor / scale;
-    let top = frame.top / scale;
-    let bottom = frame.bottom / scale;
+    let scale = (len as f64 / height as f64).ceil() as u64;
 
-    let mut first = [0, 0];
-    let mut last = [0, 0];
-    for i in 0..(len as u64) {
-        if i != 0 && i % scale == 0 {
-            result.push(format!(
-                "{}{}{:>02}{:>02}{}",
-                to_block_char(first[0], last[0]),
-                to_block_char(first[1], last[1]),
-                max(first[0], last[0]),
-                max(first[1], last[1]),
-                if cursor + 1 == i / scale {
-                    'c'
-                } else if top < i / scale && i / scale <= bottom {
-                    'v'
-                } else {
-                    ' '
-                },
-            ));
+    let mut offset: u64 = 0;
+    while offset < len as u64 {
+        let mut first = [0, 0];
+        let mut last = [0, 0];
+        for i in (offset as u64)..(offset as u64 + scale) {
+            if i >= len as u64 {
+                break;
+            }
 
-            first = [0, 0];
-            last = [0, 0];
+            let block = if i % scale < scale / 2 {
+                &mut first
+            } else {
+                &mut last
+            };
+
+            if changes[i as usize] > 0 {
+                block[0] = changes[i as usize];
+            }
+
+            if diags[i as usize] > 0 {
+                block[1] = diags[i as usize];
+            }
         }
 
-        let block = if i % scale < scale / 2 {
-            &mut first
-        } else {
-            &mut last
-        };
+        result.push(format!(
+            "{}{}{:>02}{:>02}{}",
+            to_block_char(first[0], last[0]),
+            to_block_char(first[1], last[1]),
+            max(first[0], last[0]),
+            max(first[1], last[1]),
+            if offset <= frame.cursor && frame.cursor < offset + scale {
+                'c'
+            } else if frame.top < offset + scale && frame.bottom > offset {
+                'v'
+            } else {
+                ' '
+            },
+        ));
 
-        if changes[i as usize] > 0 {
-            block[0] = changes[i as usize];
-        }
-
-        if diags[i as usize] > 0 {
-            block[1] = diags[i as usize];
-        }
+        offset += scale;
     }
 
     result
