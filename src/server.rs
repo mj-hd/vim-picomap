@@ -73,18 +73,18 @@ fn format(
         return vec![];
     }
 
-    let scale = (len as f64 / height as f64).ceil() as u64;
+    let scale = len as f64 / height as f64;
 
-    let mut offset: u64 = 0;
-    while offset < len as u64 {
+    let mut offset: f64 = 0.0;
+    while offset < len as f64 {
         let mut first = [0, 0];
         let mut last = [0, 0];
-        for i in (offset as u64)..(offset as u64 + scale) {
+        for i in (offset as u64)..((offset + scale) as u64) {
             if i >= len as u64 {
                 break;
             }
 
-            let block = if i % scale < scale / 2 {
+            let block = if (i as f64) < (offset + scale / 2.0) {
                 &mut first
             } else {
                 &mut last
@@ -105,9 +105,9 @@ fn format(
             to_block_char(first[1], last[1]),
             max(first[0], last[0]),
             max(first[1], last[1]),
-            if offset <= frame.cursor && frame.cursor < offset + scale {
+            if offset as u64 <= frame.cursor && frame.cursor < (offset + scale) as u64 {
                 'c'
-            } else if frame.top < offset + scale && frame.bottom > offset {
+            } else if frame.top < (offset + scale) as u64 && frame.bottom >= offset as u64 {
                 'v'
             } else {
                 ' '
