@@ -97,7 +97,7 @@ impl ChangeHighlighter {
                 if i >= len {
                     continue;
                 }
-                self.values[i - 1] = true;
+                self.values[i] = true;
             }
         }
     }
@@ -117,5 +117,39 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_todo() {}
+    fn test_diagnostics_highlighter_highlight() {
+        let mut highlighter = DiagnosticsHighlighter::default();
+
+        highlighter.sync(
+            3,
+            vec![
+                Diagnostic {
+                    i: 1,
+                    text: "foo".to_string(),
+                    level: DiagnosticLevel::Danger,
+                },
+                Diagnostic {
+                    i: 2,
+                    text: "bar".to_string(),
+                    level: DiagnosticLevel::Warning,
+                },
+                Diagnostic {
+                    i: 5,
+                    text: "hoge".to_string(),
+                    level: DiagnosticLevel::Warning,
+                },
+            ],
+        );
+
+        assert_eq!(highlighter.highlight(), vec![0, 2, 1]);
+    }
+
+    #[test]
+    fn test_change_highlighter_highlight() {
+        let mut highlighter = ChangeHighlighter::default();
+
+        highlighter.sync(3, vec![Change { i: 1, len: 2 }]);
+
+        assert_eq!(highlighter.highlight(), vec![0, 1, 1]);
+    }
 }

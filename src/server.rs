@@ -43,7 +43,7 @@ fn to_diagnostic(loc: &Location) -> Diagnostic {
 
 fn to_change(hunk: &Hunk) -> Change {
     Change {
-        i: hunk.lnum as usize,
+        i: hunk.lnum as usize - 1,
         len: hunk.len,
     }
 }
