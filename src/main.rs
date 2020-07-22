@@ -1,4 +1,4 @@
-use vim_micromap::server::Server;
+use vim_picomap::server::Server;
 
 fn main() {
     let mut server = Server::default();

@@ -16,7 +16,7 @@ let s:winopts = {
 
 function! s:error(id, data, event) abort
 	if s:debug_bufnr == 0
-		let s:debug_bufnr = bufadd('micromap-debug')
+		let s:debug_bufnr = bufadd('picomap-debug')
 	endif
 
 	call appendbufline(s:debug_bufnr, '$', join(a:data, ''))
@@ -32,7 +32,7 @@ function! s:start() abort
 		return v:true
 	endif
 
-	let s:ch = jobstart([fnamemodify(s:dir, ':h') . g:micromap_bin], { 'on_stderr': funcref('s:error'), 'on_exit': funcref('s:exit'), 'rpc': v:true })
+	let s:ch = jobstart([fnamemodify(s:dir, ':h') . g:picomap_bin], { 'on_stderr': funcref('s:error'), 'on_exit': funcref('s:exit'), 'rpc': v:true })
 
 	if s:ch == 0
 		echoerr 'server could not be started'
@@ -75,7 +75,7 @@ function! s:stop()
 	endif
 endfunction
 
-function! micromap#show() abort
+function! picomap#show() abort
 	let l:orig_winid = win_getid()
 
 	let l:wininfo = getwininfo(l:orig_winid)[0]
@@ -88,21 +88,21 @@ function! micromap#show() abort
 
 	let s:winid = nvim_open_win(s:bufnr, v:true, s:winopts)
 
-	setlocal filetype=micromap
+	setlocal filetype=picomap
 
 	call nvim_win_set_option(s:winid, 'winhl', 'Normal:Micromap')
-	call nvim_win_set_option(s:winid, 'winblend', g:micromap_winblend)
+	call nvim_win_set_option(s:winid, 'winblend', g:picomap_winblend)
 
 	call win_gotoid(l:orig_winid)
 
 	let l:success = s:start()
 
 	if l:success
-		let s:timer = timer_start(g:micromap_sync_interval, funcref('s:sync'), { 'repeat': -1 })
+		let s:timer = timer_start(g:picomap_sync_interval, funcref('s:sync'), { 'repeat': -1 })
 	endif
 endfunction
 
-function! micromap#update()
+function! picomap#update()
 	if s:winid == 0
 		return
 	endif
@@ -116,7 +116,7 @@ function! micromap#update()
 	call nvim_win_set_config(s:winid, s:winopts)
 endfunction
 
-function! micromap#hide()
+function! picomap#hide()
 	call s:stop()
 	if s:winid > 0
 		call nvim_win_close(s:winid, v:false)
@@ -124,7 +124,7 @@ function! micromap#hide()
 	endif
 endfunction
 
-function! micromap#debug() abort
+function! picomap#debug() abort
 	if s:debug_bufnr == 0
 		let s:debug_bufnr = bufadd('miromap-debug')
 		call setbufvar(s:debug_bufnr, '&swapfile', 0)

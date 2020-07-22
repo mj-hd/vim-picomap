@@ -1,5 +1,5 @@
 [package]
-name = "vim-micromap"
+name = "vim-picomap"
 version = "0.1.0"
 authors = ["mjhd <mjhd.devlion@gmail.com>"]
 edition = "2018"

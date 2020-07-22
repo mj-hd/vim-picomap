@@ -1,4 +1,4 @@
-## vim-micromap
+## vim-picomap
 visualize your code with overview like Visual Studio's minimap. inspired by [nanomap](https://github.com/hisaknown/nanomap.vim).
 
 **🚧 under development 🚧**

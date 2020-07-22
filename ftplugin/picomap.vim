@@ -1,8 +1,8 @@
-if exists('b:micromap_loaded')
+if exists('b:picomap_loaded')
 	finish
 endif
 
-let b:micromap_loaded = 1
+let b:picomap_loaded = 1
 
 setlocal bufhidden=hide
 	\ buftype=nofile
@@ -39,7 +39,7 @@ let s:change_guifg = [
 	\ ]
 
 for i in range(len(s:change_ctermfg)) 
-	let syntax = printf('micromap_change%02d', i)
+	let syntax = printf('picomap_change%02d', i)
 	execute('highlight ' . syntax . ' ctermbg=NONE ctermfg=' . s:change_ctermfg[i] . ' guibg=NONE guifg=' . s:change_guifg[i])
 	execute('highlight ' . syntax . 'cursor ctermbg=' . s:ctermbg_cursor . ' ctermfg=' . s:change_ctermfg[i] . ' guibg=' . s:guibg_cursor . ' guifg=' . s:change_guifg[i])
 	execute('highlight ' . syntax . 'view ctermbg=' . s:ctermbg_view . ' ctermfg=' . s:change_ctermfg[i] . ' guibg=' . s:guibg_view . ' guifg=' . s:change_guifg[i])
@@ -49,7 +49,7 @@ for i in range(len(s:change_ctermfg))
 endfor
 
 for i in range(len(s:diag_ctermfg))
-	let syntax = printf('micromap_diag%02d', i)
+	let syntax = printf('picomap_diag%02d', i)
 	execute('highlight ' . syntax . ' ctermbg=NONE ctermfg=' . s:diag_ctermfg[i] . ' guibg=NONE guifg=' . s:diag_guifg[i]) 
 	execute('highlight ' . syntax . 'cursor ctermbg=' . s:ctermbg_cursor . ' ctermfg=' . s:diag_ctermfg[i] . ' guibg=' . s:guibg_cursor . ' guifg=' . s:diag_guifg[i]) 
 	execute('highlight ' . syntax . 'view ctermbg=' . s:ctermbg_view . ' ctermfg=' . s:diag_ctermfg[i] . ' guibg=' . s:guibg_view . ' guifg=' . s:diag_guifg[i]) 
