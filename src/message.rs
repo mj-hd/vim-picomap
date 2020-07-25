@@ -108,6 +108,9 @@ impl TryFrom<&Value> for Position {
     fn try_from(value: &Value) -> Result<Self> {
         let values = value.as_array().with_context(|| "invalid position value")?;
 
+        // TODO here
+        eprintln!("{:?}", values);
+
         Ok(Position {
             x: values[0]
                 .as_u64()
@@ -125,6 +128,8 @@ pub struct SyncPayload {
     pub height: u64,
     pub scroll: u64,
     pub pos: Position,
+    pub select_start: Position,
+    pub select_end: Position,
     pub lines: Vec<String>,
     pub locations: Vec<Location>,
     pub hunks: Vec<Hunk>,
@@ -139,8 +144,10 @@ impl TryFrom<Vec<Value>> for SyncPayload {
             height: values[1].as_u64().with_context(|| "invalid height field")?,
             scroll: values[2].as_u64().with_context(|| "invalid scroll field")?,
             pos: Position::try_from(&values[3])?,
+            select_start: Position::try_from(&values[4])?,
+            select_end: Position::try_from(&values[5])?,
 
-            lines: values[4]
+            lines: values[6]
                 .as_array()
                 .with_context(|| "invalid lines field")?
                 .iter()
@@ -155,7 +162,7 @@ impl TryFrom<Vec<Value>> for SyncPayload {
                 .map(String::from)
                 .collect::<Vec<String>>(),
 
-            locations: values[5]
+            locations: values[7]
                 .as_array()
                 .with_context(|| "invalid locations field")?
                 .iter()
@@ -163,7 +170,7 @@ impl TryFrom<Vec<Value>> for SyncPayload {
                 .collect::<Result<Vec<Location>>>()
                 .with_context(|| "invalid location value")?,
 
-            hunks: values[6]
+            hunks: values[8]
                 .as_array()
                 .with_context(|| "invalid hunks field")?
                 .iter()

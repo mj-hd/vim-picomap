@@ -29,6 +29,11 @@ struct VisibleFrame {
     bottom: u64,
 }
 
+struct SelectFrame {
+    top: u64,
+    bottom: u64,
+}
+
 fn to_diagnostic(loc: &Location) -> Diagnostic {
     Diagnostic {
         i: loc.lnum as usize,
@@ -63,7 +68,8 @@ fn to_block_char(first: Highlight, last: Highlight) -> char {
 fn format(
     changes: Highlights,
     diags: Highlights,
-    frame: VisibleFrame,
+    visible: VisibleFrame,
+    select: SelectFrame,
     len: usize,
     height: u64,
 ) -> Vec<String> {
@@ -105,9 +111,11 @@ fn format(
             to_block_char(first[1], last[1]),
             max(first[0], last[0]),
             max(first[1], last[1]),
-            if offset as u64 <= frame.cursor && frame.cursor < (offset + scale) as u64 {
+            if select.top <= offset as u64 && ((offset + scale) as u64) < select.bottom {
+                's'
+            } else if offset as u64 <= visible.cursor && visible.cursor < (offset + scale) as u64 {
                 'c'
-            } else if frame.top < (offset + scale) as u64 && frame.bottom >= offset as u64 {
+            } else if visible.top < (offset + scale) as u64 && visible.bottom >= offset as u64 {
                 'v'
             } else {
                 ' '
@@ -138,16 +146,22 @@ impl Server {
                     self.diags.sync(len, diags);
                     self.changes.sync(len, changes);
 
-                    let frame = VisibleFrame {
+                    let visible = VisibleFrame {
                         cursor: payload.pos.y,
                         top: payload.scroll,
                         bottom: payload.scroll + payload.height,
                     };
 
+                    let select = SelectFrame {
+                        top: payload.select_start.y,
+                        bottom: payload.select_end.y,
+                    };
+
                     let buffer = format(
                         self.changes.highlight(),
                         self.diags.highlight(),
-                        frame,
+                        visible,
+                        select,
                         len,
                         payload.height,
                     );

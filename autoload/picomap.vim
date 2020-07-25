@@ -60,8 +60,10 @@ function! s:sync(timer) abort
 	let l:height = winheight(s:winid)
 	let l:pos = getpos('.')
 	let l:scroll = line('w0')
+	let l:select_start = getpos("'<")
+	let l:select_end = getpos("'>")
 
-	call rpcnotify(s:ch, 'sync', s:bufnr, l:height, l:scroll, l:pos, l:lines, l:diags, l:changes)
+	call rpcnotify(s:ch, 'sync', s:bufnr, l:height, l:scroll, l:pos, l:select_start, l:select_end, l:lines, l:diags, l:changes)
 
 	let s:timer = timer_start(g:picomap_sync_interval, funcref('s:sync'), {})
 endfunction
