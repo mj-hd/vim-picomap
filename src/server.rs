@@ -1,7 +1,7 @@
 use crate::highlighter::*;
 use crate::message::*;
 use anyhow::{Context, Result};
-use neovim_lib::{Neovim, Session, Value};
+use neovim_lib::{Neovim, NeovimApi, Session, Value};
 use std::cmp::max;
 use std::convert::TryFrom;
 
@@ -168,6 +168,30 @@ impl Server {
                         )
                         .expect("failed to update");
                 }
+                Message::Click => {
+                    let win = self.nvim.get_current_win().expect("failed to get window");
+                    let buf = self.nvim.get_current_buf().expect("failed to get buffer");
+
+                    let cursor_pos = win
+                        .get_cursor(&mut self.nvim)
+                        .expect("failed to get cursor");
+
+                    let win_height = win
+                        .get_height(&mut self.nvim)
+                        .expect("failed to get height");
+
+                    let line_count = buf
+                        .line_count(&mut self.nvim)
+                        .expect("failed to get line count");
+
+                    let scale = line_count as f64 / win_height as f64;
+
+                    let line_y = (cursor_pos.1 as f64 * scale) as i64;
+
+                    win.set_cursor(&mut self.nvim, (cursor_pos.0, line_y))
+                        .expect("failed to set cursor");
+                }
+
                 _ => {
                     eprintln!("unknown message");
                 }

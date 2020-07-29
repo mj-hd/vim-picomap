@@ -126,6 +126,16 @@ function! picomap#hide()
 	endif
 endfunction
 
+function! picomap#click()
+	if s:ch == 0
+		return
+	endif
+
+	echo "clicked!"
+
+	call rpcnotify(s:ch, 'click')
+endfunction
+
 function! picomap#debug() abort
 	if s:debug_bufnr == 0
 		let s:debug_bufnr = bufadd('miromap-debug')

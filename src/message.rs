@@ -4,6 +4,7 @@ use std::convert::TryFrom;
 
 pub enum Message {
     Sync,
+    Click,
     Unknown(String),
 }
 
@@ -11,6 +12,7 @@ impl From<String> for Message {
     fn from(event: String) -> Self {
         match &event[..] {
             "sync" => Message::Sync,
+            "click" => Message::Click,
             _ => Message::Unknown(event),
         }
     }
@@ -100,6 +102,21 @@ impl TryFrom<&Value> for Hunk {
 pub struct Position {
     pub x: u64,
     pub y: u64,
+}
+
+impl Position {
+    pub fn new(x: u64, y: u64) -> Self {
+        Position { x, y }
+    }
+
+    pub fn to_value(&self) -> rmpv::Value {
+        Value::from(vec![
+            Value::from(self.x),
+            Value::from(self.y),
+            Value::from(0),
+            Value::from(0),
+        ])
+    }
 }
 
 impl TryFrom<&Value> for Position {

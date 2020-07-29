@@ -10,6 +10,9 @@ setlocal bufhidden=hide
 	\ noswapfile
 	\ undolevels=-1
 
+" TODO not triggered
+nnoremap <buffer> <LeftRelease> <LeftRelease>:call picomap#click()<cr>
+
 let s:ctermbg_cursor = 237
 let s:guibg_cursor = '#2a3158'
 
