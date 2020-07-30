@@ -41,12 +41,10 @@ dependencies = [
 
 [[package]]
 name = "neovim-lib"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6a8f5a1e1be160ce2b669c2c495a34ade6f3a525d4afafd7370c1792070f587"
+version = "0.6.0"
+source = "git+https://github.com/daa84/neovim-lib#5291bf754bcfa55dcf6332808f72d09ebd78ce90"
 dependencies = [
  "log",
- "rmp",
  "rmpv",
  "unix_socket",
 ]

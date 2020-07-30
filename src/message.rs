@@ -4,6 +4,9 @@ use std::convert::TryFrom;
 
 pub enum Message {
     Sync,
+    Show,
+    Close,
+    Resize,
     Unknown(String),
 }
 
@@ -11,6 +14,9 @@ impl From<String> for Message {
     fn from(event: String) -> Self {
         match &event[..] {
             "sync" => Message::Sync,
+            "show" => Message::Show,
+            "close" => Message::Close,
+            "resize" => Message::Resize,
             _ => Message::Unknown(event),
         }
     }
@@ -97,35 +103,7 @@ impl TryFrom<&Value> for Hunk {
 }
 
 #[derive(Debug)]
-pub struct Position {
-    pub x: u64,
-    pub y: u64,
-}
-
-impl TryFrom<&Value> for Position {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &Value) -> Result<Self> {
-        let values = value.as_array().with_context(|| "invalid position value")?;
-
-        Ok(Position {
-            x: values[0]
-                .as_u64()
-                .with_context(|| "invalid position x value")?,
-            y: values[1]
-                .as_u64()
-                .with_context(|| "invalid position y value")?,
-        })
-    }
-}
-
-#[derive(Debug)]
 pub struct SyncPayload {
-    pub bufnr: u64,
-    pub height: u64,
-    pub scroll: u64,
-    pub pos: Position,
-    pub lines: Vec<String>,
     pub locations: Vec<Location>,
     pub hunks: Vec<Hunk>,
 }
@@ -135,27 +113,7 @@ impl TryFrom<Vec<Value>> for SyncPayload {
 
     fn try_from(values: Vec<Value>) -> Result<SyncPayload> {
         Ok(SyncPayload {
-            bufnr: values[0].as_u64().with_context(|| "invalid bufnr field")?,
-            height: values[1].as_u64().with_context(|| "invalid height field")?,
-            scroll: values[2].as_u64().with_context(|| "invalid scroll field")?,
-            pos: Position::try_from(&values[3])?,
-
-            lines: values[4]
-                .as_array()
-                .with_context(|| "invalid lines field")?
-                .iter()
-                .map(|value| {
-                    value
-                        .as_str()
-                        .with_context(|| format!("invalid line {}", value))
-                })
-                .collect::<Result<Vec<&str>>>()
-                .with_context(|| "invalid lines value")?
-                .into_iter()
-                .map(String::from)
-                .collect::<Vec<String>>(),
-
-            locations: values[5]
+            locations: values[0]
                 .as_array()
                 .with_context(|| "invalid locations field")?
                 .iter()
@@ -163,7 +121,7 @@ impl TryFrom<Vec<Value>> for SyncPayload {
                 .collect::<Result<Vec<Location>>>()
                 .with_context(|| "invalid location value")?,
 
-            hunks: values[6]
+            hunks: values[1]
                 .as_array()
                 .with_context(|| "invalid hunks field")?
                 .iter()

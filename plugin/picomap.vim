@@ -6,10 +6,10 @@ let g:picomap_loaded = 1
 
 augroup PicomapUpdate
 	autocmd!
-	autocmd VimResized * call picomap#update()
-	autocmd WinEnter * call picomap#update()
-	autocmd WinLeave * call picomap#update()
-	autocmd WinNew * call picomap#update()
+	autocmd VimResized * call picomap#resize()
+	autocmd WinEnter * call picomap#resize()
+	autocmd WinLeave * call picomap#resize()
+	autocmd WinNew * call picomap#resize()
 augroup END
 
 let g:picomap_winblend = 30
@@ -23,4 +23,5 @@ if s:env == 'debug'
 	nnoremap md :call picomap#debug()<cr>
 	nnoremap ms :call picomap#show()<cr>
 	nnoremap mh :call picomap#hide()<cr>
+	nnoremap mr :call picomap#restart()<cr>
 endif

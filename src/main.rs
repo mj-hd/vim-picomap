@@ -6,4 +6,6 @@ fn main() {
     if let Err(result) = server.start() {
         eprintln!("{:?}", result);
     }
+
+    // TODO handle SIGTERM
 }
