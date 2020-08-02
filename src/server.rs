@@ -266,9 +266,9 @@ impl Server {
             (Value::from("height"), Value::from(cur_win_height)),
             (
                 Value::from("col"),
-                Value::from(cur_win_pos.0 + cur_win_width),
+                Value::from(cur_win_pos.1 + cur_win_width),
             ),
-            (Value::from("row"), Value::from(cur_win_pos.1 - 1)),
+            (Value::from("row"), Value::from(cur_win_pos.0)),
         ]
     }
 }
