@@ -10,3 +10,5 @@ edition = "2018"
 neovim-lib = { git = "https://github.com/daa84/neovim-lib", branch = "master" }
 anyhow = "1.0.31"
 rmpv = "0.4.4"
+smol = "0.3.3"
+signal-hook = "0.1.16"

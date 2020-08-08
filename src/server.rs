@@ -1,13 +1,17 @@
 use crate::highlighter::*;
 use crate::message::*;
 use anyhow::{Context, Result};
-use neovim_lib::neovim_api::Window;
+use neovim_lib::neovim_api::{Buffer, Window};
 use neovim_lib::{Neovim, NeovimApi, Session, Value};
 use std::cmp::max;
 use std::convert::TryFrom;
+use std::sync::mpsc;
+use std::time::Duration;
 
 pub struct Server {
     nvim: Neovim,
+    buf: Option<Buffer>,
+    win: Option<Window>,
     diags: DiagnosticsHighlighter,
     changes: ChangeHighlighter,
 }
@@ -18,12 +22,15 @@ impl Default for Server {
 
         Self {
             nvim: Neovim::new(session.expect("session not found")),
+            buf: None,
+            win: None,
             diags: DiagnosticsHighlighter::default(),
             changes: ChangeHighlighter::default(),
         }
     }
 }
 
+// TODO move somewhere
 struct VisibleFrame {
     cursor: u64,
     top: u64,
@@ -122,142 +129,210 @@ fn format(
 }
 
 impl Server {
-    pub fn start(&mut self) -> Result<()> {
+    pub fn start(&mut self, exit: &mpsc::Receiver<()>) -> Result<()> {
         let recv = self.nvim.session.start_event_loop_channel();
 
-        let buf = self
-            .nvim
-            .create_buf(false, true)
-            .expect("failed to create buf");
+        eprintln!("start event loop");
 
-        let mut win: Option<Window> = None;
+        self.buf = Some(
+            self.nvim
+                .create_buf(false, true)
+                .context("failed to create buf")?,
+        );
 
-        for (event, values) in recv {
-            match Message::from(event) {
-                Message::Sync => {
-                    let payload =
-                        SyncPayload::try_from(values).with_context(|| "invalid payload")?;
-
-                    let diags = payload.locations.iter().map(to_diagnostic).collect();
-                    let changes = payload.hunks.iter().map(to_change).collect();
-
-                    let cur_win = self.nvim.get_current_win().expect("failed to get window");
-                    let cur_buf = self.nvim.get_current_buf().expect("failed to get buffer");
-
-                    let buf_len = cur_buf
-                        .line_count(&mut self.nvim)
-                        .expect("failed to get line count")
-                        as usize;
-
-                    let win_height = cur_win
-                        .get_height(&mut self.nvim)
-                        .expect("failed to get window height")
-                        as u64;
-
-                    let cursor = cur_win
-                        .get_cursor(&mut self.nvim)
-                        .expect("failed to get cursor");
-
-                    let scroll = self
-                        .nvim
-                        .eval("line('w0')")
-                        .expect("failed to eval scroll position")
-                        .as_u64()
-                        .with_context(|| "invalid scroll position")?;
-
-                    self.diags.sync(buf_len, diags);
-                    self.changes.sync(buf_len, changes);
-
-                    let frame = VisibleFrame {
-                        cursor: cursor.0 as u64,
-                        top: scroll,
-                        bottom: scroll + win_height,
-                    };
-
-                    let buffer = format(
-                        self.changes.highlight(),
-                        self.diags.highlight(),
-                        frame,
-                        buf_len,
-                        win_height,
-                    );
-
-                    buf.set_lines(&mut self.nvim, 0, -1, false, buffer)
-                        .expect("failed to set buf lines");
+        while let Err(mpsc::TryRecvError::Empty) = exit.try_recv() {
+            match recv.recv_timeout(Duration::from_millis(10)) {
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    eprintln!("neovim has disconeccted");
+                    break;
                 }
-                Message::Show => {
-                    let cur_win = self
-                        .nvim
-                        .get_current_win()
-                        .expect("failed to get current window");
-
-                    let config = self.win_config();
-                    win = Some(
-                        self.nvim
-                            .open_win(&buf, true, config)
-                            .expect("failed to create win"),
-                    );
-
-                    let winblend = self
-                        .nvim
-                        .get_var("picomap_winblend")
-                        .expect("failed to get global winblend option");
-
-                    if let Some(win) = &win {
-                        win.set_option(&mut self.nvim, "winhl", Value::from("Normal:Picomap"))
-                            .expect("failed to set winhl option to win");
-                        win.set_option(&mut self.nvim, "winblend", winblend)
-                            .expect("failed to set winblend option to win");
+                Ok((event, values)) => {
+                    if let Err(err) = match Message::from(event) {
+                        Message::Sync => {
+                            self.sync(values).context("failed to call sync handler")?;
+                            Ok(())
+                        }
+                        Message::Show => {
+                            self.show(values).context("failed to call show handler")?;
+                            Ok(())
+                        }
+                        Message::Resize => {
+                            self.resize(values)
+                                .context("failed to call resize handler")?;
+                            Ok(())
+                        }
+                        Message::Close => {
+                            self.close(values).context("failed to call close handler")?;
+                            Ok(())
+                        }
+                        _ => {
+                            eprintln!("unknown message");
+                            Ok(())
+                        }
+                    } {
+                        return err;
                     }
-
-                    buf.set_option(&mut self.nvim, "filetype", Value::from("picomap"))
-                        .expect("failed to set filetype option");
-
-                    self.nvim
-                        .set_current_win(&cur_win)
-                        .expect("failed to set current win");
-                }
-                Message::Resize => {
-                    if let Some(win) = &win {
-                        let config = self.win_config();
-                        win.set_config(&mut self.nvim, config)
-                            .expect("failed to set window config");
-                    }
-                }
-                Message::Close => {
-                    if let Some(win) = &win.take() {
-                        win.close(&mut self.nvim, true)
-                            .expect("failed to close picomap");
-                    }
-                }
-                _ => {
-                    eprintln!("unknown message");
                 }
             }
         }
 
+        eprintln!("exit event loop");
+
         Ok(())
     }
 
-    pub fn stop(&self) {}
+    fn sync(&mut self, values: Vec<Value>) -> Result<()> {
+        let payload = SyncPayload::try_from(values).context("invalid payload")?;
 
-    fn win_config(&mut self) -> Vec<(Value, Value)> {
+        let diags = payload.locations.iter().map(to_diagnostic).collect();
+        let changes = payload.hunks.iter().map(to_change).collect();
+
         let cur_win = self
             .nvim
             .get_current_win()
-            .expect("failed to get current win");
+            .context("failed to get window")?;
+        let cur_buf = self
+            .nvim
+            .get_current_buf()
+            .context("failed to get buffer")?;
+
+        let buf_len = cur_buf
+            .line_count(&mut self.nvim)
+            .context("failed to get line count")? as usize;
+
+        let win_height = cur_win
+            .get_height(&mut self.nvim)
+            .context("failed to get window height")? as u64;
+
+        let cursor = cur_win
+            .get_cursor(&mut self.nvim)
+            .context("failed to get cursor")?;
+
+        let scroll = self
+            .nvim
+            .eval("line('w0')")
+            .context("failed to eval scroll position")?
+            .as_u64()
+            .context("invalid scroll position")?;
+
+        self.diags.sync(buf_len, diags);
+        self.changes.sync(buf_len, changes);
+
+        let frame = VisibleFrame {
+            cursor: cursor.0 as u64,
+            top: scroll,
+            bottom: scroll + win_height,
+        };
+
+        let buffer = format(
+            self.changes.highlight(),
+            self.diags.highlight(),
+            frame,
+            buf_len,
+            win_height,
+        );
+
+        let buf = match &self.buf {
+            Some(buf) => buf,
+            None => return Ok(()),
+        };
+
+        buf.set_lines(&mut self.nvim, 0, -1, false, buffer)
+            .context("failed to set buf lines")?;
+
+        Ok(())
+    }
+
+    fn show(&mut self, _values: Vec<Value>) -> Result<()> {
+        let config = self.win_config()?;
+
+        let buf = match &self.buf {
+            Some(buf) => buf,
+            None => return Ok(()),
+        };
+
+        let cur_win = self
+            .nvim
+            .get_current_win()
+            .context("failed to get current window")?;
+
+        self.win = Some(
+            self.nvim
+                .open_win(buf, true, config)
+                .context("failed to create win")?,
+        );
+
+        let winblend = self
+            .nvim
+            .get_var("picomap_winblend")
+            .context("failed to get global winblend option")?;
+
+        let win = match &self.win {
+            Some(win) => win,
+            None => return Ok(()),
+        };
+
+        win.set_option(&mut self.nvim, "winhl", Value::from("Normal:Picomap"))
+            .context("failed to set winhl option to win")?;
+        win.set_option(&mut self.nvim, "winblend", winblend)
+            .context("failed to set winblend option to win")?;
+
+        buf.set_option(&mut self.nvim, "filetype", Value::from("picomap"))
+            .context("failed to set filetype option")?;
+
+        self.nvim
+            .set_current_win(&cur_win)
+            .context("failed to set current win")?;
+
+        Ok(())
+    }
+
+    fn resize(&mut self, _values: Vec<Value>) -> Result<()> {
+        let config = self.win_config()?;
+
+        let win = match &self.win {
+            Some(win) => win,
+            None => return Ok(()),
+        };
+
+        win.set_config(&mut self.nvim, config)
+            .context("failed to set window config")?;
+
+        Ok(())
+    }
+
+    fn close(&mut self, _values: Vec<Value>) -> Result<()> {
+        let win = match &self.win {
+            Some(win) => win,
+            None => return Ok(()),
+        };
+
+        win.close(&mut self.nvim, true)
+            .context("failed to close picomap")?;
+
+        self.win = None;
+
+        Ok(())
+    }
+
+    fn win_config(&mut self) -> Result<Vec<(Value, Value)>> {
+        let cur_win = self
+            .nvim
+            .get_current_win()
+            .context("failed to get current win")?;
 
         let cur_win_height = cur_win
             .get_height(&mut self.nvim)
-            .expect("failed to get current win height");
+            .context("failed to get current win height")?;
         let cur_win_width = cur_win
             .get_width(&mut self.nvim)
-            .expect("failed to get current win width");
+            .context("failed to get current win width")?;
         let cur_win_pos = cur_win
             .get_position(&mut self.nvim)
-            .expect("failed to get current win pos");
+            .context("failed to get current win pos")?;
 
-        vec![
+        Ok(vec![
             (Value::from("relative"), Value::from("editor")),
             (Value::from("anchor"), Value::from("NE")),
             (Value::from("width"), Value::from(2)),
@@ -269,6 +344,20 @@ impl Server {
                 Value::from(cur_win_pos.1 + cur_win_width),
             ),
             (Value::from("row"), Value::from(cur_win_pos.0)),
-        ]
+        ])
+    }
+}
+
+impl Drop for Server {
+    fn drop(&mut self) {
+        eprintln!("server dropped");
+
+        match &self.win {
+            Some(win) => {
+                win.close(&mut self.nvim, true)
+                    .expect("failed to close win");
+            }
+            None => (),
+        };
     }
 }

@@ -3,6 +3,7 @@ if exists('g:picomap_loaded')
 endif
 
 let g:picomap_loaded = 1
+let g:picomap_leaving = 0
 
 augroup PicomapUpdate
 	autocmd!
@@ -10,6 +11,11 @@ augroup PicomapUpdate
 	autocmd WinEnter * call picomap#resize()
 	autocmd WinLeave * call picomap#resize()
 	autocmd WinNew * call picomap#resize()
+augroup END
+
+augroup Picomap
+	autocmd!
+	autocmd VimLeavePre * let g:picomap_leaving = 1
 augroup END
 
 let g:picomap_winblend = 30

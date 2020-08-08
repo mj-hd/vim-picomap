@@ -1,27 +1,47 @@
 let s:ch = 0
 let s:timer = 0
 let s:debug_bufnr = 0
+let s:server_started = 0
+let s:server_retries = 0
 
 let s:dir = expand('<sfile>:p:h')
 
-function! s:error(id, data, event) abort
+function! s:on_error(id, data, event) abort
 	if s:debug_bufnr == 0
 		let s:debug_bufnr = bufadd('picomap-debug')
 	endif
 
-	call appendbufline(s:debug_bufnr, '$', join(a:data, ''))
+	call appendbufline(s:debug_bufnr, '$', join(a:data, "\n"))
 endfunction
 
-function! s:exit(id, data, event) abort
-	call s:stop()
+function! s:on_exit(id, data, event) abort
+	call s:timer_stop()
+
+	" restart the server with unexpected exit
+	if s:server_started && !g:picomap_leaving
+		let s:server_retries += 1
+
+		let s:ch = 0
+
+		if s:server_retries > 1
+			let s:server_retries = 0
+			let s:server_started = 0
+			echoerr 'server exited unexpectedly'
+			return
+		endif
+
+		call s:start_server()
+		call s:timer_start()
+	endif
 endfunction
 
-function! s:start() abort
+" start the server and store channel id to s:ch
+function! s:start_server() abort
 	if s:ch > 0
 		return v:true
 	endif
 
-	let s:ch = jobstart([fnamemodify(s:dir, ':h') . g:picomap_bin], { 'on_stderr': funcref('s:error'), 'on_exit': funcref('s:exit'), 'rpc': v:true })
+	let s:ch = jobstart([fnamemodify(s:dir, ':h') . g:picomap_bin], { 'on_stderr': funcref('s:on_error'), 'on_exit': funcref('s:on_exit'), 'rpc': v:true })
 
 	if s:ch == 0
 		echoerr 'server could not be started'
@@ -31,27 +51,45 @@ function! s:start() abort
 		return v:false
 	endif
 
+	let s:server_started = 1
+
 	return v:true
 endfunction
 
+" sync the server and set next sync timer
 function! s:sync(timer) abort
-	if s:ch < 1
-		echoerr 'server is not started'
-		call s:stop()
+	let s:timer = 0
+
+	if s:ch == 0
 		return
 	endif
 
+	" TODO remove coc direct dependency
 	call CocAction('fillDiagnostics', bufnr('%'))
 
 	let l:diags = getloclist(win_getid())
+
+	" TODO opt-in git gutter dependency
 	let l:changes = GitGutterGetHunks()
 
 	call rpcnotify(s:ch, 'sync', l:diags, l:changes)
 
+	let s:server_retries = 0
+
+	call s:timer_start()
+endfunction
+
+" start sync timer
+function! s:timer_start()
+	if s:timer > 0
+		return
+	endif
+
 	let s:timer = timer_start(g:picomap_sync_interval, funcref('s:sync'), {})
 endfunction
 
-function! s:stop()
+" stop sync timer
+function! s:timer_stop()
 	if s:timer > 0
 		call timer_stop(s:timer)
 		let s:timer = 0
@@ -59,12 +97,12 @@ function! s:stop()
 endfunction
 
 function! picomap#show() abort
-	let l:success = s:start()
+	let l:success = s:start_server()
 
 	call rpcnotify(s:ch, 'show')
 
 	if l:success
-		let s:timer = timer_start(g:picomap_sync_interval, funcref('s:sync'), {})
+		call s:timer_start()
 	endif
 endfunction
 
@@ -75,7 +113,7 @@ function! picomap#resize()
 endfunction
 
 function! picomap#hide()
-	call s:stop()
+	call s:timer_stop()
 	if s:ch > 0
 		call rpcnotify(s:ch, 'close')
 	endif
@@ -83,7 +121,7 @@ endfunction
 
 function! picomap#debug() abort
 	if s:debug_bufnr == 0
-		let s:debug_bufnr = bufadd('miromap-debug')
+		let s:debug_bufnr = bufadd('picomap-debug')
 		call setbufvar(s:debug_bufnr, '&swapfile', 0)
 		call setbufvar(s:debug_bufnr, '&buftype', 'nofile')
 		call setbufvar(s:debug_bufnr, '&undolevels', -1)
@@ -92,12 +130,9 @@ function! picomap#debug() abort
 endfunction
 
 function! picomap#restart() abort
-	call picomap#hide()
-
 	if s:ch > 0
+		call s:timer_stop()
+		" trigger restart
 		call jobstop(s:ch)
-		let s:ch = 0
 	endif
-
-	call picomap#show()
 endfunction
