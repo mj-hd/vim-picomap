@@ -1,12 +1,19 @@
+use crate::channel_stream::*;
 use crate::highlighter::*;
 use crate::message::*;
 use anyhow::{Context, Result};
+use async_trait::async_trait;
 use neovim_lib::neovim_api::{Buffer, Window};
 use neovim_lib::{Neovim, NeovimApi, Session, Value};
+use smol::stream::*;
 use std::cmp::max;
 use std::convert::TryFrom;
 use std::sync::mpsc;
-use std::time::Duration;
+
+#[async_trait]
+pub trait ServerTrait {
+    async fn start(&mut self, done: mpsc::Receiver<()>) -> Result<()>;
+}
 
 pub struct Server {
     nvim: Neovim,
@@ -128,8 +135,9 @@ fn format(
     result
 }
 
-impl Server {
-    pub fn start(&mut self, exit: &mpsc::Receiver<()>) -> Result<()> {
+#[async_trait]
+impl ServerTrait for Server {
+    async fn start(&mut self, done: mpsc::Receiver<()>) -> Result<()> {
         let recv = self.nvim.session.start_event_loop_channel();
 
         eprintln!("start event loop");
@@ -140,40 +148,33 @@ impl Server {
                 .context("failed to create buf")?,
         );
 
-        while let Err(mpsc::TryRecvError::Empty) = exit.try_recv() {
-            match recv.recv_timeout(Duration::from_millis(10)) {
-                Err(mpsc::RecvTimeoutError::Timeout) => {}
-                Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    eprintln!("neovim has disconeccted");
-                    break;
+        let mut events = ChannelStream::from(recv).with_done(done);
+
+        while let Some((event, values)) = events.next().await {
+            if let Err(err) = match Message::from(event) {
+                Message::Sync => {
+                    self.sync(values).context("failed to call sync handler")?;
+                    Ok(())
                 }
-                Ok((event, values)) => {
-                    if let Err(err) = match Message::from(event) {
-                        Message::Sync => {
-                            self.sync(values).context("failed to call sync handler")?;
-                            Ok(())
-                        }
-                        Message::Show => {
-                            self.show(values).context("failed to call show handler")?;
-                            Ok(())
-                        }
-                        Message::Resize => {
-                            self.resize(values)
-                                .context("failed to call resize handler")?;
-                            Ok(())
-                        }
-                        Message::Close => {
-                            self.close(values).context("failed to call close handler")?;
-                            Ok(())
-                        }
-                        _ => {
-                            eprintln!("unknown message");
-                            Ok(())
-                        }
-                    } {
-                        return err;
-                    }
+                Message::Show => {
+                    self.show(values).context("failed to call show handler")?;
+                    Ok(())
                 }
+                Message::Resize => {
+                    self.resize(values)
+                        .context("failed to call resize handler")?;
+                    Ok(())
+                }
+                Message::Close => {
+                    self.close(values).context("failed to call close handler")?;
+                    Ok(())
+                }
+                _ => {
+                    eprintln!("unknown message");
+                    Ok(())
+                }
+            } {
+                return err;
             }
         }
 
@@ -181,7 +182,9 @@ impl Server {
 
         Ok(())
     }
+}
 
+impl Server {
     fn sync(&mut self, values: Vec<Value>) -> Result<()> {
         let payload = SyncPayload::try_from(values).context("invalid payload")?;
 
