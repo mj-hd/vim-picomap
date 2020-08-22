@@ -1,12 +1,18 @@
 use crate::highlighter::*;
 use crate::message::*;
 use anyhow::{Context, Result};
+use async_trait::async_trait;
 use neovim_lib::neovim_api::{Buffer, Window};
 use neovim_lib::{Neovim, NeovimApi, Session, Value};
 use std::cmp::max;
 use std::convert::TryFrom;
 use std::sync::mpsc;
 use std::time::Duration;
+
+#[async_trait]
+pub trait ServerTrait {
+    async fn start(&mut self, done: mpsc::Receiver<()>) -> Result<()>;
+}
 
 pub struct Server {
     nvim: Neovim,
@@ -128,8 +134,9 @@ fn format(
     result
 }
 
-impl Server {
-    pub fn start(&mut self, exit: &mpsc::Receiver<()>) -> Result<()> {
+#[async_trait]
+impl ServerTrait for Server {
+    async fn start(&mut self, done: mpsc::Receiver<()>) -> Result<()> {
         let recv = self.nvim.session.start_event_loop_channel();
 
         eprintln!("start event loop");
@@ -140,10 +147,14 @@ impl Server {
                 .context("failed to create buf")?,
         );
 
-        while let Err(mpsc::TryRecvError::Empty) = exit.try_recv() {
-            match recv.recv_timeout(Duration::from_millis(10)) {
-                Err(mpsc::RecvTimeoutError::Timeout) => {}
-                Err(mpsc::RecvTimeoutError::Disconnected) => {
+        loop {
+            if Err(mpsc::TryRecvError::Empty) != done.try_recv() {
+                break;
+            }
+
+            match recv.try_recv() {
+                Err(mpsc::TryRecvError::Empty) => {}
+                Err(mpsc::TryRecvError::Disconnected) => {
                     eprintln!("neovim has disconeccted");
                     break;
                 }
@@ -175,13 +186,17 @@ impl Server {
                     }
                 }
             }
+
+            smol::Timer::new(Duration::from_millis(10)).await;
         }
 
         eprintln!("exit event loop");
 
         Ok(())
     }
+}
 
+impl Server {
     fn sync(&mut self, values: Vec<Value>) -> Result<()> {
         let payload = SyncPayload::try_from(values).context("invalid payload")?;
 

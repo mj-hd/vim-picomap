@@ -1,24 +1,21 @@
-use signal_hook::iterator::Signals;
-use smol::{future, io};
+use smol::{future, io, Async};
+use std::os::unix::net::UnixStream;
 use std::sync::mpsc;
-use vim_picomap::server::Server;
+use vim_picomap::server::*;
 
 #[cfg(unix)]
 fn main() -> io::Result<()> {
-    let signals = Signals::new(&[
-        signal_hook::SIGINT,
-        signal_hook::SIGTERM,
-        signal_hook::SIGQUIT,
-    ])?;
+    let (signal_tx, signal_rx) = Async::<UnixStream>::pair()?;
+    signal_hook::pipe::register(signal_hook::SIGTERM, signal_tx)?;
 
-    let (exit_tx, exit_rx) = mpsc::channel();
+    let (done_tx, done_rx) = mpsc::channel();
 
     smol::run(async {
         future::race(
             async {
                 let mut server = Server::default();
 
-                match server.start(&exit_rx) {
+                match server.start(done_rx).await {
                     Err(result) => {
                         eprintln!("{:?}", result);
 
@@ -28,11 +25,11 @@ fn main() -> io::Result<()> {
                 }
             },
             async {
-                signals.forever().next();
+                signal_rx.readable().await?;
 
                 eprintln!("received jobstop");
 
-                exit_tx.send(()).expect("failed to stop server");
+                done_tx.send(()).expect("failed to stop server");
 
                 eprintln!("stopped!");
 
