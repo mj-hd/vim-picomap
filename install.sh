@@ -17,7 +17,7 @@ cargo_build() {
 
 download() {
     command -v curl > /dev/null && \
-        curl --fail --location "$1" --output target/release/nvim-spotify
+        curl --fail --location "$1" --output target/release/vim-picomap
 }
 
 
