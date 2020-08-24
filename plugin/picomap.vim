@@ -16,10 +16,14 @@ augroup END
 augroup Picomap
 	autocmd!
 	autocmd VimLeavePre * let g:picomap_leaving = 1
+	autocmd VimEnter * call picomap#init()
 augroup END
 
+let g:picomap_autostart = 1
 let g:picomap_winblend = 30
 let g:picomap_sync_interval = 100
+let g:picomap_gitgutter = 1
+let g:picomap_coc = 1
 
 let s:bin_suffix = has('win32') ? '.exe' : ''
 let s:env = 'debug'

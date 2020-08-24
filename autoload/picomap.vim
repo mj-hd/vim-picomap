@@ -64,13 +64,21 @@ function! s:sync(timer) abort
 		return
 	endif
 
-	" TODO remove coc direct dependency
-	call CocAction('fillDiagnostics', bufnr('%'))
+	if g:picomap_leaving
+		return
+	endif
+
+	if g:picomap_coc
+		call CocAction('fillDiagnostics', bufnr('%'))
+	endif
 
 	let l:diags = getloclist(win_getid())
 
-	" TODO opt-in git gutter dependency
-	let l:changes = GitGutterGetHunks()
+	let l:changes = []
+
+	if g:picomap_gitgutter
+		let l:changes = GitGutterGetHunks()
+	endif
 
 	call rpcnotify(s:ch, 'sync', l:diags, l:changes)
 
@@ -93,6 +101,12 @@ function! s:timer_stop()
 	if s:timer > 0
 		call timer_stop(s:timer)
 		let s:timer = 0
+	endif
+endfunction
+
+function! picomap#init() abort
+	if g:picomap_autostart
+		call picomap#show()
 	endif
 endfunction
 
