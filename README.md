@@ -3,7 +3,8 @@ visualize your code with overview like Visual Studio's minimap. inspired by [nan
 
 **🚧 under development 🚧**
 
-![screenshot](https://user-images.githubusercontent.com/6854255/87242111-aa3b2d00-c464-11ea-96f5-3f7a0bd314e0.png)
+![Kapture 2020-08-26 at 00 29 54](https://user-images.githubusercontent.com/6854255/91194887-85102e80-e733-11ea-91c6-070b53d7bfe8.gif)
+
 
 ### TODO
 
