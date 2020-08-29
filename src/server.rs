@@ -289,16 +289,16 @@ impl Server {
             .0 as u64;
 
         let visible_frame = Frame {
-            top: scroll,
-            bottom: scroll + win_height,
+            top: scroll - 1,
+            bottom: scroll - 1 + win_height,
         };
 
-        let mut modifier = Modifier::new(cursor, visible_frame);
+        let mut modifier = Modifier::new(cursor - 1, visible_frame);
 
         modifier.select_frame = match &mode[..] {
             "v" | "V" | "CTRL-V" => Some(Frame {
-                top: select_start,
-                bottom: cursor,
+                top: select_start - 1,
+                bottom: cursor - 1,
             }),
             _ => None,
         };
