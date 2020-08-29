@@ -9,7 +9,6 @@ visualize your code with overview like Visual Studio's minimap. inspired by [nan
 ### TODO
 
 - [ ] highlight search results
-- [ ] highlight selected range
 - [ ] mouse support
 
 ## Requirements
