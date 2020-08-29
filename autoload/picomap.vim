@@ -60,27 +60,7 @@ endfunction
 function! s:sync(timer) abort
 	let s:timer = 0
 
-	if s:ch == 0
-		return
-	endif
-
-	if g:picomap_leaving
-		return
-	endif
-
-	if g:picomap_coc
-		call CocAction('fillDiagnostics', bufnr('%'))
-	endif
-
-	let l:diags = getloclist(win_getid())
-
-	let l:changes = []
-
-	if g:picomap_gitgutter
-		let l:changes = GitGutterGetHunks()
-	endif
-
-	call rpcnotify(s:ch, 'sync', l:diags, l:changes)
+	call picomap#sync()
 
 	let s:server_retries = 0
 
@@ -118,6 +98,30 @@ function! picomap#show() abort
 	if l:success
 		call s:timer_start()
 	endif
+endfunction
+
+function! picomap#sync() abort
+	if s:ch == 0
+		return
+	endif
+
+	if g:picomap_leaving
+		return
+	endif
+
+	if g:picomap_coc
+		call CocAction('fillDiagnostics', bufnr('%'))
+	endif
+
+	let l:diags = getloclist(win_getid())
+
+	let l:changes = []
+
+	if g:picomap_gitgutter
+		let l:changes = GitGutterGetHunks()
+	endif
+
+	call rpcnotify(s:ch, 'sync', l:diags, l:changes)
 endfunction
 
 function! picomap#resize()

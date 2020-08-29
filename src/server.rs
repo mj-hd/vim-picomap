@@ -19,6 +19,8 @@ pub struct Server {
     win: Option<Window>,
     diags: DiagnosticsHighlighter,
     changes: ChangeHighlighter,
+    modifier: Modifier,
+    buf_len: usize,
 }
 
 impl Default for Server {
@@ -31,6 +33,8 @@ impl Default for Server {
             win: None,
             diags: DiagnosticsHighlighter::default(),
             changes: ChangeHighlighter::default(),
+            modifier: Modifier::default(),
+            buf_len: 0,
         }
     }
 }
@@ -115,92 +119,30 @@ impl Server {
         let diags = payload.locations.iter().map(to_diagnostic).collect();
         let changes = payload.hunks.iter().map(to_change).collect();
 
-        let cur_win = self
-            .nvim
-            .get_current_win()
-            .context("failed to get window")?;
-
         let cur_buf = self
             .nvim
             .get_current_buf()
-            .context("failed to get buffer")?;
+            .context("failed to get current buffer")?;
 
         let buf_len = cur_buf
             .line_count(&mut self.nvim)
             .context("failed to get line count")? as usize;
 
-        let win_height = cur_win
-            .get_height(&mut self.nvim)
-            .context("failed to get window height")? as u64;
-
-        let cursor = cur_win
-            .get_cursor(&mut self.nvim)
-            .context("failed to get cursor")?
-            .0 as u64;
-
-        let scroll = self
-            .nvim
-            .eval("line('w0')")
-            .context("failed to eval scroll position")?
-            .as_u64()
-            .context("invalid scroll position")?;
-
-        let select_start = self
-            .nvim
-            .eval("getpos('v')")
-            .context("failed to eval select start position")?
-            .as_array()
-            .context("invalid select start position")?[1]
-            .as_u64()
-            .context("invalid select start value")?;
-
-        let mode = self
-            .nvim
-            .eval("mode()")
-            .context("failed to eval mode")?
-            .as_str()
-            .context("invalid mode str")?
-            .to_owned();
-
         self.diags.sync(buf_len, diags);
         self.changes.sync(buf_len, changes);
+        self.modifier = self.get_modifier()?;
+        self.buf_len = buf_len;
 
-        let visible_frame = Frame {
-            top: scroll,
-            bottom: scroll + win_height,
-        };
-
-        let select_frame = match &mode[..] {
-            "v" | "V" | "CTRL-V" => Some(Frame {
-                top: select_start,
-                bottom: cursor,
-            }),
-            _ => None,
-        };
-
-        let buffer = format_highlights(
-            self.changes.highlight(),
-            self.diags.highlight(),
-            visible_frame,
-            select_frame,
-            cursor,
-            buf_len,
-            win_height,
-        );
-
-        let buf = match &self.buf {
-            Some(buf) => buf,
-            None => return Ok(()),
-        };
-
-        buf.set_lines(&mut self.nvim, 0, -1, false, buffer)
-            .context("failed to set buf lines")?;
-
-        Ok(())
+        self.redraw()
     }
 
     fn show(&mut self, _values: Vec<Value>) -> Result<()> {
-        let config = self.win_config()?;
+        let cur_win = self
+            .nvim
+            .get_current_win()
+            .context("failed to get current win")?;
+
+        let config = self.get_win_config(&cur_win)?;
 
         let buf = match &self.buf {
             Some(buf) => buf,
@@ -244,7 +186,12 @@ impl Server {
     }
 
     fn resize(&mut self, _values: Vec<Value>) -> Result<()> {
-        let config = self.win_config()?;
+        let cur_win = self
+            .nvim
+            .get_current_win()
+            .context("failed to get current win")?;
+
+        let config = self.get_win_config(&cur_win)?;
 
         let win = match &self.win {
             Some(win) => win,
@@ -254,7 +201,9 @@ impl Server {
         win.set_config(&mut self.nvim, config)
             .context("failed to set window config")?;
 
-        Ok(())
+        self.modifier = self.get_modifier()?;
+
+        self.redraw()
     }
 
     fn close(&mut self, _values: Vec<Value>) -> Result<()> {
@@ -271,12 +220,93 @@ impl Server {
         Ok(())
     }
 
-    fn win_config(&mut self) -> Result<Vec<(Value, Value)>> {
+    fn redraw(&mut self) -> Result<()> {
         let cur_win = self
             .nvim
             .get_current_win()
-            .context("failed to get current win")?;
+            .context("failed to get window")?;
 
+        let win_height = cur_win
+            .get_height(&mut self.nvim)
+            .context("failed to get window height")? as u64;
+
+        let buffer = format_highlights(
+            self.changes.highlight(),
+            self.diags.highlight(),
+            &self.modifier,
+            self.buf_len,
+            win_height,
+        );
+
+        let buf = match &self.buf {
+            Some(buf) => buf,
+            None => return Ok(()),
+        };
+
+        buf.set_lines(&mut self.nvim, 0, -1, false, buffer)
+            .context("failed to set buf lines")?;
+
+        Ok(())
+    }
+
+    fn get_modifier(&mut self) -> Result<Modifier> {
+        let cur_win = self
+            .nvim
+            .get_current_win()
+            .context("failed to get current window")?;
+
+        let win_height = cur_win
+            .get_height(&mut self.nvim)
+            .context("failed to get window height")? as u64;
+
+        let mode = self
+            .nvim
+            .eval("mode()")
+            .context("failed to eval mode")?
+            .as_str()
+            .context("invalid mode str")?
+            .to_owned();
+
+        let select_start = self
+            .nvim
+            .eval("getpos('v')")
+            .context("failed to eval select start position")?
+            .as_array()
+            .context("invalid select start position")?[1]
+            .as_u64()
+            .context("invalid select start value")?;
+
+        let scroll = self
+            .nvim
+            .eval("line('w0')")
+            .context("failed to eval scroll position")?
+            .as_u64()
+            .context("invalid scroll position")?;
+
+        let cursor = cur_win
+            .get_cursor(&mut self.nvim)
+            .context("failed to get cursor")?
+            .0 as u64;
+
+        let visible_frame = Frame {
+            top: scroll,
+            bottom: scroll + win_height,
+        };
+
+        let mut modifier = Modifier::new(cursor, visible_frame);
+
+        modifier.select_frame = match &mode[..] {
+            "v" | "V" | "CTRL-V" => Some(Frame {
+                top: select_start,
+                bottom: cursor,
+            }),
+            _ => None,
+        };
+
+        Ok(modifier)
+    }
+
+    fn get_win_config(&mut self, cur_win: &Window) -> Result<Vec<(Value, Value)>> {
         let cur_win_height = cur_win
             .get_height(&mut self.nvim)
             .context("failed to get current win height")?;

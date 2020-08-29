@@ -145,9 +145,16 @@ impl fmt::Display for Block {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct Frame {
     pub top: u64,
     pub bottom: u64,
+}
+
+impl Default for Frame {
+    fn default() -> Self {
+        Frame { top: 0, bottom: 0 }
+    }
 }
 
 impl Frame {
@@ -158,13 +165,32 @@ impl Frame {
     }
 }
 
-struct Modifier {
+#[derive(Clone, Copy)]
+pub struct Modifier {
     pub cursor: u64,
     pub visible_frame: Frame,
     pub select_frame: Option<Frame>,
 }
 
+impl Default for Modifier {
+    fn default() -> Self {
+        Modifier {
+            cursor: 0,
+            visible_frame: Frame::default(),
+            select_frame: None,
+        }
+    }
+}
+
 impl Modifier {
+    pub fn new(cursor: u64, visible_frame: Frame) -> Self {
+        Modifier {
+            cursor,
+            visible_frame,
+            select_frame: None,
+        }
+    }
+
     pub fn to_char(&self, offset: f64, scale: f64) -> char {
         if offset as u64 <= self.cursor && self.cursor < (offset + scale) as u64 {
             return 'c';
@@ -187,9 +213,7 @@ impl Modifier {
 pub fn format_highlights(
     changes: Highlights,
     diags: Highlights,
-    visible_frame: Frame,
-    select_frame: Option<Frame>,
-    cursor: u64,
+    modifier: &Modifier,
     len: usize,
     height: u64,
 ) -> Vec<String> {
@@ -198,12 +222,6 @@ pub fn format_highlights(
     if len == 0 || height == 0 {
         return vec![];
     }
-
-    let modifier = Modifier {
-        cursor,
-        visible_frame,
-        select_frame,
-    };
 
     let scale = len as f64 / height as f64;
 
