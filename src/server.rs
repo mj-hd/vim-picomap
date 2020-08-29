@@ -159,30 +159,22 @@ impl ServerTrait for Server {
                     break;
                 }
                 Ok((event, values)) => {
-                    if let Err(err) = match Message::from(event) {
-                        Message::Sync => {
-                            self.sync(values).context("failed to call sync handler")?;
-                            Ok(())
-                        }
-                        Message::Show => {
-                            self.show(values).context("failed to call show handler")?;
-                            Ok(())
-                        }
+                    let result = match Message::from(event) {
+                        Message::Sync => self.sync(values).context("failed to call sync handler"),
+                        Message::Show => self.show(values).context("failed to call show handler"),
                         Message::Resize => {
-                            self.resize(values)
-                                .context("failed to call resize handler")?;
-                            Ok(())
+                            self.resize(values).context("failed to call resize handler")
                         }
                         Message::Close => {
-                            self.close(values).context("failed to call close handler")?;
-                            Ok(())
+                            self.close(values).context("failed to call close handler")
                         }
                         _ => {
                             eprintln!("unknown message");
                             Ok(())
                         }
-                    } {
-                        return err;
+                    };
+                    if let Err(err) = result {
+                        eprintln!("err: {}", err);
                     }
                 }
             }
