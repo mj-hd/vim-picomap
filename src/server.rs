@@ -4,7 +4,6 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use neovim_lib::neovim_api::{Buffer, Window};
 use neovim_lib::{Neovim, NeovimApi, Session, Value};
-use std::cmp::max;
 use std::convert::TryFrom;
 use std::sync::mpsc;
 use std::time::Duration;
@@ -36,13 +35,6 @@ impl Default for Server {
     }
 }
 
-// TODO move somewhere
-struct VisibleFrame {
-    cursor: u64,
-    top: u64,
-    bottom: u64,
-}
-
 fn to_diagnostic(loc: &Location) -> Diagnostic {
     Diagnostic {
         i: loc.lnum as usize,
@@ -60,78 +52,6 @@ fn to_change(hunk: &Hunk) -> Change {
         i: hunk.lnum as usize - 1,
         len: hunk.len,
     }
-}
-
-fn to_block_char(first: Highlight, last: Highlight) -> char {
-    if first > 0 && last > 0 {
-        '▌'
-    } else if first > 0 {
-        '▘'
-    } else if last > 0 {
-        '▖'
-    } else {
-        ' '
-    }
-}
-
-fn format(
-    changes: Highlights,
-    diags: Highlights,
-    frame: VisibleFrame,
-    len: usize,
-    height: u64,
-) -> Vec<String> {
-    let mut result = Vec::with_capacity(height as usize);
-
-    if len == 0 || height == 0 {
-        return vec![];
-    }
-
-    let scale = len as f64 / height as f64;
-
-    let mut offset: f64 = 0.0;
-    while offset < len as f64 {
-        let mut first = [0, 0];
-        let mut last = [0, 0];
-        for i in (offset as u64)..((offset + scale) as u64) {
-            if i >= len as u64 {
-                break;
-            }
-
-            let block = if (i as f64) < (offset + scale / 2.0) {
-                &mut first
-            } else {
-                &mut last
-            };
-
-            if changes[i as usize] > 0 {
-                block[0] = changes[i as usize];
-            }
-
-            if diags[i as usize] > 0 {
-                block[1] = diags[i as usize];
-            }
-        }
-
-        result.push(format!(
-            "{}{}{:>02}{:>02}{}",
-            to_block_char(first[0], last[0]),
-            to_block_char(first[1], last[1]),
-            max(first[0], last[0]),
-            max(first[1], last[1]),
-            if offset as u64 <= frame.cursor && frame.cursor < (offset + scale) as u64 {
-                'c'
-            } else if frame.top < (offset + scale) as u64 && frame.bottom >= offset as u64 {
-                'v'
-            } else {
-                ' '
-            },
-        ));
-
-        offset += scale;
-    }
-
-    result
 }
 
 #[async_trait]
@@ -232,7 +152,7 @@ impl Server {
             bottom: scroll + win_height,
         };
 
-        let buffer = format(
+        let buffer = format_highlights(
             self.changes.highlight(),
             self.diags.highlight(),
             frame,

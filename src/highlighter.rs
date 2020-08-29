@@ -1,3 +1,6 @@
+use std::cmp::max;
+use std::fmt;
+
 const LINE_CAPACITY: usize = 500;
 
 pub type Highlight = u64;
@@ -110,6 +113,102 @@ impl Highlighter for ChangeHighlighter {
             .map(|val| if *val { 1 } else { 0 })
             .collect::<Vec<_>>()
     }
+}
+
+struct Block {
+    values: [Highlight; 2],
+}
+
+impl Block {
+    fn new(first: Highlight, last: Highlight) -> Self {
+        Block {
+            values: [first, last],
+        }
+    }
+}
+
+impl fmt::Display for Block {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            if self.values[0] > 0 && self.values[1] > 0 {
+                '▌'
+            } else if self.values[0] > 0 {
+                '▘'
+            } else if self.values[1] > 0 {
+                '▖'
+            } else {
+                ' '
+            }
+        )
+    }
+}
+
+pub struct VisibleFrame {
+    pub cursor: u64,
+    pub top: u64,
+    pub bottom: u64,
+}
+
+pub fn format_highlights(
+    changes: Highlights,
+    diags: Highlights,
+    frame: VisibleFrame,
+    len: usize,
+    height: u64,
+) -> Vec<String> {
+    let mut result = Vec::with_capacity(height as usize);
+
+    if len == 0 || height == 0 {
+        return vec![];
+    }
+
+    let scale = len as f64 / height as f64;
+
+    let mut offset: f64 = 0.0;
+    while offset < len as f64 {
+        let mut first = [0, 0];
+        let mut last = [0, 0];
+        for i in (offset as u64)..((offset + scale) as u64) {
+            if i >= len as u64 {
+                break;
+            }
+
+            let block = if (i as f64) < (offset + scale / 2.0) {
+                &mut first
+            } else {
+                &mut last
+            };
+
+            if changes[i as usize] > 0 {
+                block[0] = changes[i as usize];
+            }
+
+            if diags[i as usize] > 0 {
+                block[1] = diags[i as usize];
+            }
+        }
+
+        result.push(format!(
+            "{}{}{:>02}{:>02}{}",
+            Block::new(first[0], last[0]),
+            Block::new(first[1], last[1]),
+            max(first[0], last[0]),
+            max(first[1], last[1]),
+            if offset as u64 <= frame.cursor && frame.cursor < (offset + scale) as u64 {
+                'c'
+            } else if frame.top < (offset + scale) as u64 && frame.bottom >= offset as u64 {
+                'v'
+            } else {
+                ' '
+            },
+        ));
+
+        offset += scale;
+    }
+
+    result
 }
 
 #[cfg(test)]
