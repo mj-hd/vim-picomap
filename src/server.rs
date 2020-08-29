@@ -119,6 +119,7 @@ impl Server {
             .nvim
             .get_current_win()
             .context("failed to get window")?;
+
         let cur_buf = self
             .nvim
             .get_current_buf()
@@ -134,7 +135,8 @@ impl Server {
 
         let cursor = cur_win
             .get_cursor(&mut self.nvim)
-            .context("failed to get cursor")?;
+            .context("failed to get cursor")?
+            .0 as u64;
 
         let scroll = self
             .nvim
@@ -143,19 +145,45 @@ impl Server {
             .as_u64()
             .context("invalid scroll position")?;
 
+        let select_start = self
+            .nvim
+            .eval("getpos('v')")
+            .context("failed to eval select start position")?
+            .as_array()
+            .context("invalid select start position")?[1]
+            .as_u64()
+            .context("invalid select start value")?;
+
+        let mode = self
+            .nvim
+            .eval("mode()")
+            .context("failed to eval mode")?
+            .as_str()
+            .context("invalid mode str")?
+            .to_owned();
+
         self.diags.sync(buf_len, diags);
         self.changes.sync(buf_len, changes);
 
-        let frame = VisibleFrame {
-            cursor: cursor.0 as u64,
+        let visible_frame = Frame {
             top: scroll,
             bottom: scroll + win_height,
+        };
+
+        let select_frame = match &mode[..] {
+            "v" | "V" | "CTRL-V" => Some(Frame {
+                top: select_start,
+                bottom: cursor,
+            }),
+            _ => None,
         };
 
         let buffer = format_highlights(
             self.changes.highlight(),
             self.diags.highlight(),
-            frame,
+            visible_frame,
+            select_frame,
+            cursor,
             buf_len,
             win_height,
         );

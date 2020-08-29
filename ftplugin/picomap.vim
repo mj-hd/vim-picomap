@@ -16,6 +16,9 @@ let s:guibg_cursor = '#2a3158'
 let s:ctermbg_view = 235
 let s:guibg_view = '#1e2132'
 
+let s:ctermbg_select = 243
+let s:guibg_select = '#757ca3'
+
 let s:diag_ctermfg = [
 	\ 234,
 	\ 130,
@@ -43,9 +46,11 @@ for i in range(len(s:change_ctermfg))
 	execute('highlight ' . syntax . ' ctermbg=NONE ctermfg=' . s:change_ctermfg[i] . ' guibg=NONE guifg=' . s:change_guifg[i])
 	execute('highlight ' . syntax . 'cursor ctermbg=' . s:ctermbg_cursor . ' ctermfg=' . s:change_ctermfg[i] . ' guibg=' . s:guibg_cursor . ' guifg=' . s:change_guifg[i])
 	execute('highlight ' . syntax . 'view ctermbg=' . s:ctermbg_view . ' ctermfg=' . s:change_ctermfg[i] . ' guibg=' . s:guibg_view . ' guifg=' . s:change_guifg[i])
+	execute('highlight ' . syntax . 'select ctermbg=' . s:ctermbg_select . ' ctermfg=' . s:change_ctermfg[i] . ' guibg=' . s:guibg_select . ' guifg=' . s:change_guifg[i])
 	call matchadd(syntax, printf('\(▖\|▘\|▌\| \).%02d.. $', i))
 	call matchadd(syntax . 'cursor', printf('\(▖\|▘\|▌\| \).%02d..c$', i))
 	call matchadd(syntax . 'view', printf('\(▖\|▘\|▌\| \).%02d..v$', i))
+	call matchadd(syntax . 'select', printf('\(▖\|▘\|▌\| \).%02d..s$', i))
 endfor
 
 for i in range(len(s:diag_ctermfg))
@@ -53,7 +58,9 @@ for i in range(len(s:diag_ctermfg))
 	execute('highlight ' . syntax . ' ctermbg=NONE ctermfg=' . s:diag_ctermfg[i] . ' guibg=NONE guifg=' . s:diag_guifg[i]) 
 	execute('highlight ' . syntax . 'cursor ctermbg=' . s:ctermbg_cursor . ' ctermfg=' . s:diag_ctermfg[i] . ' guibg=' . s:guibg_cursor . ' guifg=' . s:diag_guifg[i]) 
 	execute('highlight ' . syntax . 'view ctermbg=' . s:ctermbg_view . ' ctermfg=' . s:diag_ctermfg[i] . ' guibg=' . s:guibg_view . ' guifg=' . s:diag_guifg[i]) 
+	execute('highlight ' . syntax . 'select ctermbg=' . s:ctermbg_select . ' ctermfg=' . s:diag_ctermfg[i] . ' guibg=' . s:guibg_select . ' guifg=' . s:diag_guifg[i]) 
 	call matchadd(syntax, printf('\(▖\|▘\|▌\| \)..%02d $', i))
 	call matchadd(syntax . 'cursor', printf('\(▖\|▘\|▌\| \)..%02dc$', i))
 	call matchadd(syntax . 'view', printf('\(▖\|▘\|▌\| \)..%02dv$', i))
+	call matchadd(syntax . 'select', printf('\(▖\|▘\|▌\| \)..%02ds$', i))
 endfor

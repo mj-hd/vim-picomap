@@ -1,4 +1,4 @@
-use std::cmp::max;
+use std::cmp::{max, min};
 use std::fmt;
 
 const LINE_CAPACITY: usize = 500;
@@ -145,16 +145,51 @@ impl fmt::Display for Block {
     }
 }
 
-pub struct VisibleFrame {
-    pub cursor: u64,
+pub struct Frame {
     pub top: u64,
     pub bottom: u64,
+}
+
+impl Frame {
+    fn contains(&self, offset: f64, scale: f64) -> bool {
+        let top = min(self.top, self.bottom);
+        let bottom = max(self.top, self.bottom);
+        top < (offset + scale) as u64 && bottom >= offset as u64
+    }
+}
+
+struct Modifier {
+    pub cursor: u64,
+    pub visible_frame: Frame,
+    pub select_frame: Option<Frame>,
+}
+
+impl Modifier {
+    pub fn to_char(&self, offset: f64, scale: f64) -> char {
+        if offset as u64 <= self.cursor && self.cursor < (offset + scale) as u64 {
+            return 'c';
+        }
+
+        if let Some(frame) = &self.select_frame {
+            if frame.contains(offset, scale) {
+                return 's';
+            }
+        }
+
+        if self.visible_frame.contains(offset, scale) {
+            return 'v';
+        }
+
+        ' '
+    }
 }
 
 pub fn format_highlights(
     changes: Highlights,
     diags: Highlights,
-    frame: VisibleFrame,
+    visible_frame: Frame,
+    select_frame: Option<Frame>,
+    cursor: u64,
     len: usize,
     height: u64,
 ) -> Vec<String> {
@@ -163,6 +198,12 @@ pub fn format_highlights(
     if len == 0 || height == 0 {
         return vec![];
     }
+
+    let modifier = Modifier {
+        cursor,
+        visible_frame,
+        select_frame,
+    };
 
     let scale = len as f64 / height as f64;
 
@@ -196,13 +237,7 @@ pub fn format_highlights(
             Block::new(first[1], last[1]),
             max(first[0], last[0]),
             max(first[1], last[1]),
-            if offset as u64 <= frame.cursor && frame.cursor < (offset + scale) as u64 {
-                'c'
-            } else if frame.top < (offset + scale) as u64 && frame.bottom >= offset as u64 {
-                'v'
-            } else {
-                ' '
-            },
+            modifier.to_char(offset, scale),
         ));
 
         offset += scale;
