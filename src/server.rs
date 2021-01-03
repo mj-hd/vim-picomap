@@ -1,5 +1,6 @@
 use crate::highlighter::*;
 use crate::message::*;
+use crate::picomap::*;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use neovim_lib::neovim_api::{Buffer, Window};
@@ -17,9 +18,9 @@ pub struct Server {
     nvim: Neovim,
     buf: Option<Buffer>,
     win: Option<Window>,
+    picomap: Picomap,
     diags: DiagnosticsHighlighter,
     changes: ChangeHighlighter,
-    modifier: Modifier,
     buf_len: usize,
 }
 
@@ -31,9 +32,9 @@ impl Default for Server {
             nvim: Neovim::new(session.expect("session not found")),
             buf: None,
             win: None,
+            picomap: Picomap::default(),
             diags: DiagnosticsHighlighter::default(),
             changes: ChangeHighlighter::default(),
-            modifier: Modifier::default(),
             buf_len: 0,
         }
     }
@@ -130,7 +131,7 @@ impl Server {
 
         self.diags.sync(buf_len, diags);
         self.changes.sync(buf_len, changes);
-        self.modifier = self.get_modifier()?;
+        self.picomap.modifier = self.get_modifier()?;
         self.buf_len = buf_len;
 
         self.redraw()
@@ -201,7 +202,7 @@ impl Server {
         win.set_config(&mut self.nvim, config)
             .context("failed to set window config")?;
 
-        self.modifier = self.get_modifier()?;
+        self.picomap.modifier = self.get_modifier()?;
 
         self.redraw()
     }
@@ -230,13 +231,10 @@ impl Server {
             .get_height(&mut self.nvim)
             .context("failed to get window height")? as u64;
 
-        let buffer = format_highlights(
-            self.changes.highlight(),
-            self.diags.highlight(),
-            &self.modifier,
-            self.buf_len,
-            win_height,
-        );
+        self.picomap.changes = self.changes.highlight();
+        self.picomap.diags = self.diags.highlight();
+
+        let buffer = self.picomap.to_strings(self.buf_len, win_height);
 
         let buf = match &self.buf {
             Some(buf) => buf,
